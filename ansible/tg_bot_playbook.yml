@@ -203,12 +203,12 @@
         path: /usr/bot_project/
         state: directory
 
-#    - name: git clone
-#      become: yes
-#      ansible.builtin.git:
-#        repo: "https://github.com/kovachev3/PT_START"
-#        dest: "/usr/bot_project/"
-#        version: docker
+     - name: git clone
+       become: yes
+       ansible.builtin.git:
+         repo: "https://github.com/kovachev3/PT_START"
+         dest: "/usr/bot_project/"
+         version: docker
 
     - name: install python dependencies
       become: yes
