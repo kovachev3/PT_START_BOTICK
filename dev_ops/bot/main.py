@@ -81,13 +81,15 @@ def save_email(update: Update,context):
                 connection.close()
             except (Exception, Error) as error:
                 update.message.reply_text("Ошибка в бд")
-                return
+                return ConversationHandler.END
         else:
-            return
+            connection.close()
+            return ConversationHandler.END
     else:
         update.message.reply_text("OS")
-        return
-    return
+        connection.close()
+        return ConversationHandler.END
+    return ConversationHandler.END
 
 def find_phone_number(update: Update, context):
     user_input = update.message.text 
@@ -123,13 +125,15 @@ def save_phone_numbers(update: Update,context):
                 connection.close()
             except (Exception, Error) as error:
                 update.message.reply_text("Ошибка в бд")
-                return
+                return ConversationHandler.END
         else:
-            return
+            connection.close()
+            return ConversationHandler.END
     else:
         update.message.reply_text("OS")
-        return
-    return
+        connection.close()
+        return ConversationHandler.END
+    return ConversationHandler.END
 
 
 def verify_password(update: Update, context):
