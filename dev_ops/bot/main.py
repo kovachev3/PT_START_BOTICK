@@ -252,7 +252,7 @@ def get_emails(update: Update, context):
     for x in data:
         output+=str(x[0])+'. '+x[1]+'\n'
     update.message.reply_text(output)
-
+    connection.close()
 def get_phone_numbers(update: Update, context):
     connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432",database="base_1")
     cursor = connection.cursor()
@@ -262,7 +262,7 @@ def get_phone_numbers(update: Update, context):
     for x in data:
         output+=str(x[0])+'. '+str(x[1])+'\n'
     update.message.reply_text(output)
-
+    connection.close()
 def main():
     updater = Updater(TOKEN, use_context=True)
 
