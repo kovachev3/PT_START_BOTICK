@@ -85,7 +85,7 @@ def save_email(update: Update,context):
         else:
             return
     else:
-        update.message.reply_text("Нет подключения к бд")
+        update.message.reply_text(update.message.text)
         return
     return
 
@@ -127,7 +127,7 @@ def save_phone_numbers(update: Update,context):
         else:
             return
     else:
-        update.message.reply_text("Нет подключения к бд")
+        update.message.reply_text(update.message.text)
         return
     return
 
