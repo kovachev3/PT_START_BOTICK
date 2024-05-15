@@ -78,6 +78,7 @@ def save_email(update: Update,context):
                     cursor.execute("INSERT INTO email(email) VALUES ('"+str(x)+"');")
                 connection.commit()
                 update.message.reply_text("Успешно добавлен в бд!")
+                connection.close()
             except (Exception, Error) as error:
                 update.message.reply_text("Ошибка в бд")
                 return
@@ -119,6 +120,7 @@ def save_phone_numbers(update: Update,context):
                     cursor.execute("INSERT INTO phone(phone) VALUES ('"+str(x)+"');")
                 connection.commit()
                 update.message.reply_text("Успешно добавлен в бд!")
+                connection.close()
             except (Exception, Error) as error:
                 update.message.reply_text("Ошибка в бд")
                 return
@@ -151,67 +153,67 @@ def print_info(stdout, stderr):
 
 def get_release(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('cat /etc/os-release')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_uname(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('uname -a')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_uptime(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('uptime')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_df(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('df')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_free(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('free')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_mpstat(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('mpstat')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_w(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('w')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_auth(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('cat /var/log/auth.log | head -10')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_critical(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('cat /var/log/syslog | head -5')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_ps(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('ps')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_ss(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('ss -tulpn')
     update.message.reply_text(print_info(stdout,stderr))
 
@@ -219,7 +221,7 @@ def get_ss(update: Update, context):
 
 def get_apt_list(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     user_input=str(update.message.text)
     if user_input=='all':
         stdin, stdout, stderr = client.exec_command('apt list | head -15')
@@ -232,13 +234,13 @@ def get_apt_list(update: Update, context):
 
 def get_services(update: Update, context):
     global client
-    connect_to_machine('192.168.0.103')
+    connect_to_machine('192.168.0.106')
     stdin, stdout, stderr = client.exec_command('service --status-all')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_repl_logs(update: Update, context):
-    connect_to_machine('192.168.0.103')
-    stdin, stdout, stderr = client.exec_command('docker logs bot_image_repl --tail 5')
+    connect_to_machine('192.168.0.106')
+    stdin, stdout, stderr = client.exec_command('docker logs bot_image_repl --tail 20')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_emails(update: Update, context):
