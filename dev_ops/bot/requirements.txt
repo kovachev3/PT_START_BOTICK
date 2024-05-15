@@ -1,5 +1,4 @@
 paramiko
 psycopg2
 python-dotenv
-aiogram==2.14.3
-fabric
+python-telegram-bot==13.7

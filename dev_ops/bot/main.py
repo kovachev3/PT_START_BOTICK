@@ -1,481 +1,340 @@
-#aiogram 2.14.3
-from aiogram import Bot,Dispatcher,executor,types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
-import re
-from command_ssh import *
-import time
-from sql import *
-
 import logging
-logging.basicConfig(filename='Log.txt',level=logging.DEBUG, format=' %(asctime)s - %(levelname)s - %(message)s')
+import re
+import psycopg2
+
+from psycopg2 import Error
+
+from telegram import Update, ForceReply
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
+
+import paramiko
+client = paramiko.SSHClient()
+def connect_to_machine(thishost):
+    global client
+    host = thishost
+    port = '22'
+    username = 'kali'
+    password = 'kali'
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(hostname=host, username=username, password=password, port=port)
 
 
-bot = Bot(token='6572075975:AAHR9lTpU0AhPlOboiMGQSsnqwZugJRpq8c')
-storage = MemoryStorage()
-dp = Dispatcher(bot=bot, storage=storage)
+TOKEN = "6572075975:AAHR9lTpU0AhPlOboiMGQSsnqwZugJRpq8c"
 
-class emailState(StatesGroup):
-    email = State()
-class email_insert_State(StatesGroup):
-    email = State()
-class phoneState(StatesGroup):
-    phone = State()
+# Подключаем логирование
+logging.basicConfig(
+    filename='logfile.txt', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
 
-class phone_insert_State(StatesGroup):
-    phone = State()
-class passwordState(StatesGroup):
-    password = State()
-class argState(StatesGroup):
-    arg = State()
+logger = logging.getLogger(__name__)
 
+def start(update: Update, context):
+    user = update.effective_user
+    update.message.reply_text(f'Привет, {user.full_name}!')
 
-@dp.message_handler(commands=['find_email'])
-async def find_email(message: types.Message, state: FSMContext):
-    logging.info('Вызов find_email')
-    await message.answer("Введите текст в котором надо найти email:")
-    await message.answer("/close - для выхода из функции")
-    await emailState.email.set()
+def findEmailCommand(update: Update, context):
+    update.message.reply_text('Введите текст для поиска email: ')
+    return 'find_email'
 
-@dp.message_handler(state=emailState.email)
-async def process_email(message: types.Message, state: FSMContext):
-    response = message.text
-    logging.debug(f'find_email поймал сообщение от пользователя:{response}')
-    if response != '/close':
-        logging.debug(f"find_email провалился в response != '/close' и начинает выполнение функции re.findall")
-        emails = re.findall(r'[\w\.-]+@[\w\.-]+\.[\w\.-]+', response)
-        if emails:
-            logging.debug(f"find_email - re.findall - нашел нужные значения")
-            await message.answer(f"Найденные email: {', '.join(emails)}")
-            await message.answer("Хотите записать эти email-адреса? (д/н)")
-            logging.debug(f"find_email - отчет отправлен пользователю и предложен выбор для внесения в базу")
-            async with state.proxy() as data:
-                data['emails'] = emails
-            await email_insert_State.email.set()
+def findPhoneNumberCommand(update: Update, context):
+    update.message.reply_text('Введите текст для поиска телефонных номеров: ')
+    return 'find_phone_number'
+
+def verifyPasswordCommand(update: Update, context):
+    update.message.reply_text('Введите пароль: ')
+    return 'verify_password'
+
+def aptListCommand(update: Update, context):
+    update.message.reply_text('all - посмотреть все пакеты,\
+                               \n\'Название пакета\' - посмотреть информацию о пакете')
+    return 'get_apt_list'
+
+def find_email(update: Update, context):
+    user_input = update.message.text
+    emailNumRegex =re.compile(r"\b[a-zA-Z0-9]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}\b")
+    emailNumList = emailNumRegex.findall(user_input)
+    context.user_data['email'] = emailNumList
+    if not emailNumList:
+        update.message.reply_text('Email не были найдены')
+        return
+    emailNum = ''
+    for i in range(len(emailNumList)):
+        emailNum += f'{i+1}. {emailNumList[i]}\n'
+    update.message.reply_text('Были найдены следующие email: '\
+                              +'\n'+emailNum+'\n'\
+                                +'Записать их в базу данных? (Y\\N)') 
+    return 'SAVE EMAIL'
+
+def save_email(update: Update,context):
+    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
+    cursor= connection.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS email(ID SERIAL PRIMARY KEY, email VARCHAR(100) NOT NULL);")
+    connection.commit()
+    email = context.user_data['email']
+    if update.message.text in ['Y','N']:
+        if(update.message.text == 'Y'):
+            try:
+                for x in email:
+                    cursor.execute("INSERT INTO email(email) VALUES ('"+str(x)+"');")
+                connection.commit()
+                update.message.reply_text("Успешно добавлен в бд!")
+                connection.close()
+            except (Exception, Error) as error:
+                update.message.reply_text("Ошибка в бд")
+                return
         else:
-            logging.debug(f"find_email - re.findall - не нашел нужные значения")
-            await message.answer("Email не найдены")
-            await message.answer("/close - для выхода из функции")
-            logging.debug(f"find_email - отчет отправлен пользователю")
+            return
     else:
-        logging.debug(f"find_email - провалился в завершение функции")
-        await message.answer('Вы вышли из функции...')
-        logging.debug('find_email - отправил сообщение <завершил работу> ')
-        await state.finish()
-        logging.debug('find_email - закрыл state и завершил работу')
+        update.message.reply_text("OS")
+        return
+    return
 
-@dp.message_handler(state=email_insert_State.email)
-async def process_email_insert(message: types.Message, state: FSMContext):
-    response = message.text
-    logging.debug(f'process_email_insert поймал сообщение от пользователя:{response}')
-    if response == 'д':
-        async with state.proxy() as data:
-            emails = data['emails']
-        await message.answer(f'Записываем email-адреса: {", ".join(emails)}')
-        logging.debug(f'process_email_insert начинает запись')
-        answer = ''
-        for i in emails:
-            res = email_insert(i)
-            answer += f'{i}:{res}\n'
-        await message.answer(answer)
-    else:
-        await message.answer('Email-адреса не записаны.')
-    await message.answer('Работа функции закончена.')
-    await state.finish()
-    logging.debug('process_email_insert - закрыл state и завершил работу')
+def find_phone_number(update: Update, context):
+    user_input = update.message.text 
+    phoneNumRegex = re.compile(r"\+?7[ -]?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}|\+?7[ -]?\d{10}|\+?7[ -]?\d{3}[ -]?\d{3}[ -]?\d{4}|8[ -]?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}|8[ -]?\d{10}|8[ -]?\d{3}[ -]?\d{3}[ -]?\d{4}") 
+    phoneNumberList = phoneNumRegex.findall(user_input) 
+    context.user_data['phone_numbers'] = phoneNumberList
+    if not phoneNumberList:
+        update.message.reply_text('Телефонные номера не найдены')
+        return 
+    phoneNumbers = ''
+    for i in range(len(phoneNumberList)):
+        phoneNumbers += f'{i+1}. {phoneNumberList[i]}\n' 
+    update.message.reply_text('Были найдены следующие номера: '\
+                              +'\n'+phoneNumbers+'\n'\
+                                +'Записать их в базу данных? (Y\\N)') 
+    return 'SAVE PHONE NUMBERS'
 
 
 
-
-@dp.message_handler(commands=['find_phone_number'])
-async def find_email(message: types.Message):
-    logging.info('Вызов find_phone_number')
-    await message.answer("Введите текст в котором надо найти номера телефонов:")
-    await message.answer("/close - для выхода из функции")
-    await phoneState.phone.set()
-@dp.message_handler(state=phoneState.phone)
-async def process_phone(message: types.Message, state: FSMContext):
-    response = message.text
-    logging.debug(f'find_phone_number поймал сообщение от пользователя:{response}')
-    if response != '/close':
-        logging.debug(f"find_phone_number провалился в response != '/close' и начинает выполнение функции re.findall")
-        phone_pattern = r'(\+7|8)?[\s-]?\(?(\d{1,3})\)?[\s-]?(\d{3})[\s-]?(\d{2})[\s-]?(\d{2})'
-        phone_numbers = re.findall(phone_pattern, response)
-        result = []
-        logging.debug(f'Начало number in ({phone_numbers})')
-        for number in phone_numbers:
-            formatted_number = ''.join(number[1:])
-            result.append(formatted_number)
-        if result:
-            logging.debug(f'find_phone_number нашел телефонные номера')
-            await message.answer(f"Найденные номера телефонов: {', '.join(result)}")
-            await message.answer("Хотите записать эти email-адреса? (д/н)")
-            logging.debug(f"find_phone_number - отчет отправлен пользователю и предложен выбор для внесения в базу")
-            async with state.proxy() as data:
-                data['phones'] = result
-            await phone_insert_State.phone.set()
+def save_phone_numbers(update: Update,context):
+    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
+    cursor = connection.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS phone(ID SERIAL PRIMARY KEY, phone VARCHAR(20));")
+    connection.commit()
+    phoneNumberList = context.user_data['phone_numbers']
+    if update.message.text in ['Y','N']:
+        if(update.message.text == 'Y'):
+            try:
+                for x in phoneNumberList:
+                    cursor.execute("INSERT INTO phone(phone) VALUES ('"+str(x)+"');")
+                connection.commit()
+                update.message.reply_text("Успешно добавлен в бд!")
+                connection.close()
+            except (Exception, Error) as error:
+                update.message.reply_text("Ошибка в бд")
+                return
         else:
-            logging.debug(f'find_phone_number не нашел телефонные номера')
-            await message.answer("Телефоны не найдены")
-            await message.answer("/close - для выхода из функции")
-            logging.debug(f'find_phone_number отправил отчет')
+            return
     else:
-        await message.answer('Вы вышли из функции...')
-        await state.finish()
-        logging.debug(f'find_phone_number отправил отчет и завершил работу')
-@dp.message_handler(state=phone_insert_State.phone)
-async def process_phone_insert(message: types.Message, state: FSMContext):
-    response = message.text
-    logging.debug(f'process_phone_insert поймал сообщение от пользователя:{response}')
-    if response == 'д':
-        async with state.proxy() as data:
-            phones = data['phones']
-        await message.answer(f'Записываем email-адреса: {", ".join(phones)}')
-        logging.debug(f'process_email_insert начинает запись')
-        answer = ''
-        for i in phones:
-            res = email_insert(i)
-            answer += f'{i}:{res}\n'
-        await message.answer(answer)
+        update.message.reply_text("OS")
+        return
+    return
+
+
+def verify_password(update: Update, context):
+    user_input=update.message.text
+    if (
+        len(str(user_input))>=8 and
+        re.search(r'[A-Z]', user_input)
+        and re.search(r'[a-z]', user_input)
+        and re.search(r'\d', user_input)
+        and re.search(r'[!@#$%^&*()]', user_input)):
+        update.message.reply_text('Пароль сложный')
     else:
-        await message.answer('Телефоны не записаны.')
-    await message.answer('Работа функции закончена.')
-    await state.finish()
-    logging.debug('process_email_insert - закрыл state и завершил работу')
+        update.message.reply_text('Пароль простой')
+        return
+    return ConversationHandler.END 
+
+def print_info(stdout, stderr):
+    data = stdout.read() + stderr.read()
+    data = str(data).replace('\\n', '\n').replace('\\t', '\t')[2:-1]
+    return(data)
+
+def get_release(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('cat /etc/os-release')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_uname(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('uname -a')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_uptime(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('uptime')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_df(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('df')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_free(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('free')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_mpstat(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('mpstat')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_w(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('w')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_auth(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('cat /var/log/auth.log | head -10')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_critical(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('cat /var/log/syslog | head -5')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_ps(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('ps')
+    update.message.reply_text(print_info(stdout,stderr))
+
+def get_ss(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('ss -tulpn')
+    update.message.reply_text(print_info(stdout,stderr))
 
 
-@dp.message_handler(commands=['verify_password'])
-async def find_email(message: types.Message):
-    logging.debug(f'Вызов verify_password')
-    await message.answer("Введите пароль:")
-    await message.answer("/close - для выхода из функции")
-    await passwordState.password.set()
-@dp.message_handler(state=passwordState.password)
-async def process_phone(message: types.Message, state: FSMContext):
-    password = message.text
-    logging.debug(f'verify_password поймал сообщение от пользователя:{password}')
-    if password != '/close':
-        logging.debug(f'verify_password начинает выполнение проверки')
-        if len(password) < 8 or not re.search(r'[A-Z]', password) or not re.search(r'[a-z]', password) or not re.search(r'\d', password) or not re.search(r'[!@#$%^&*()]', password):
-            logging.debug(f'verify_password результат проверки - Пароль простой')
-            await message.answer('Пароль простой')
-            await message.answer("/close - для выхода из функции")
-            logging.debug(f'verify_password отправил отчет')
 
-        else:
-            logging.debug(f'verify_password результат проверки - Пароль сложный')
-            await message.answer('Пароль сложный')
-            await message.answer("/close - для выхода из функции")
-            logging.debug(f'verify_password отправил отчет')
+def get_apt_list(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    user_input=str(update.message.text)
+    if user_input=='all':
+        stdin, stdout, stderr = client.exec_command('apt list | head -15')
+        update.message.reply_text(print_info(stdout,stderr))
     else:
-        await message.answer('Вы вышли из функции...')
-        await state.finish()
-        logging.debug(f'verify_password отправил отчет и завершил работу')
+        user_input_apt=update.message.text
+        stdin, stdout, stderr = client.exec_command('apt show '+str(user_input_apt))
+        update.message.reply_text(print_info(stdout,stderr))
+    return ConversationHandler.END 
 
-#-----SSH---
-@dp.message_handler(commands=['get_release'])
-async def release(message: types.Message):
-    logging.debug(f'Вызов get_release')
-    logging.debug(f'get_release вызывает get_release')
-    response = get_release()
-    logging.debug(f'get_release - получил ответ')
-    logging.debug(f'get_release - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_release - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_uname'])
-async def uname(message: types.Message):
-    logging.debug(f'Вызов get_uname')
-    logging.debug(f'get_uname вызывает get_uname')
-    response = get_uname()
-    logging.debug(f'get_uname - получил ответ')
-    logging.debug(f'get_uname - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_uname - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_uptime'])
-async def uptime(message: types.Message):
-    logging.debug(f'Вызов get_uptime')
-    logging.debug(f'get_uptime вызывает get_uname')
-    response = get_uptime()
-    logging.debug(f'get_uptime - получил ответ')
-    logging.debug(f'get_uptime - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_uptime - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_df'])
-async def df(message: types.Message):
-    logging.debug(f'Вызов get_df')
-    logging.debug(f'get_df вызывает get_df')
-    response = get_df()
-    logging.debug(f'get_df - получил ответ')
-    logging.debug(f'get_df - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_df - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_free'])
-async def free(message: types.Message):
-    logging.debug(f'Вызов get_free')
-    logging.debug(f'get_free вызывает get_free')
-    response = get_free()
-    logging.debug(f'get_free - получил ответ')
-    logging.debug(f'get_free - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_free - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_mpstat'])
-async def mpstat(message: types.Message):
-    logging.debug(f'Вызов get_mpstat')
-    logging.debug(f'get_mpstat вызывает get_mpstat')
-    responce = get_mpstat()
-    logging.debug(f'get_mpstat - получил ответ')
-    logging.debug(f'get_mpstat - начинает проверку длины')
-    if len(responce) > 4096:
-        logging.debug(f'get_mpstat - длина больше 4096')
-        n = len(responce) // 4096
-        logging.debug(f'get_mpstat - найдено целое число делений ответа = {n}')
-        logging.debug(f'get_mpstat - запуск цикла отправки сообщений в интервале от 0 до {n}')
-        for i in range(n):
-            await message.answer(responce[:4096])
-            logging.debug(f'get_mpstat {i}-е сообщение отправлено')
-            responce = responce[4096:]
-            logging.debug(f'get_mpstat - удалил первые 4096 символ из ответа от функции')
-            time.sleep(1)
-            logging.debug(f'get_mpstat - ушел в сон на 1 секунду')
-        logging.debug(f'get_mpstat - заверил цикл, начинает проверку остатка ответа')
-        if len(responce) > 0:
-            logging.debug(f'get_mpstat - остаток найден')
-            await message.answer(responce)
-            logging.debug(f'get_mpstat - отправил последнее сообщение и завершил работу')
-    else:
-        logging.debug(f'get_mpstat - длина ответа меньше 4096')
-        await message.answer(responce)
-        logging.debug(f'get_mpstat - отправил отчет и завершил работу')
-@dp.message_handler(commands=['get_w'])
-async def w(message: types.Message):
-    logging.debug(f'Вызов get_w')
-    logging.debug(f'get_w вызывает get_w')
-    response = get_w()
-    logging.debug(f'get_w - получил ответ')
-    logging.debug(f'get_w - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_w - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_auths'])
-async def auths(message: types.Message):
-    logging.debug(f'Вызов get_auths')
-    logging.debug(f'get_auths вызывает get_auths')
-    response = get_auths()
-    logging.debug(f'get_auths - получил ответ')
-    logging.debug(f'get_auths - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_auths - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_critical'])
-async def critical(message: types.Message):
-    logging.debug(f'Вызов get_critical')
-    logging.debug(f'get_critical вызывает get_critical')
-    response = get_critical()
-    logging.debug(f'get_critical - получил ответ')
-    logging.debug(f'get_critical - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_critical - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_ps'])
-async def ps(message: types.Message):
-    logging.debug(f'Вызов get_ps')
-    logging.debug(f'get_ps вызывает get_ps')
-    responce = get_ps()
-    logging.debug(f'get_ps - получил ответ')
-    logging.debug(f'get_ps - начинает проверку длины ответа')
-    if len(responce) > 4096:
-        logging.debug(f'get_ps - длина ответа больше 4096')
-        n = len(responce) // 4096
-        logging.debug(f'get_ps - найдено целое число делений ответа = {n}')
-        logging.debug(f'get_ps - запуск цикла отправки сообщений в интервале от 0 до {n}')
-        for i in range(n):
-            await message.answer(responce[:4096])
-            logging.debug(f'get_ps {i}-е сообщение отправлено')
-            responce = responce[4096:]
-            logging.debug(f'get_ps - удалил первые 4096 символ из ответа от функции')
-            time.sleep(1)
-            logging.debug(f'get_ps - ушел в сон на 1 секунду')
-        logging.debug(f'get_ps - заверил цикл, начинает проверку остатка ответа')
-        if len(responce) > 0:
-            logging.debug(f'get_ps - остаток найден')
-            await message.answer(responce)
-            logging.debug(f'get_ps - отправил последнее сообщение и завершил работу')
-    else:
-        logging.debug(f'get_ps - длина ответа меньше 4096')
-        await message.answer(responce)
-        logging.debug(f'get_ps - отправил отчет и завершил работу')
-@dp.message_handler(commands=['get_ss'])
-async def ss(message: types.Message):
-    logging.debug(f'Вызов get_ss')
-    logging.debug(f'get_ss вызывает get_ss')
-    response = get_ss()
-    logging.debug(f'get_ss - получил ответ')
-    logging.debug(f'get_ss - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_ss - отправил отчет, завершил работу')
-@dp.message_handler(commands=['get_services'])
-async def services(message: types.Message):
-    logging.debug(f'Вызов get_services')
-    logging.debug(f'get_services вызывает get_services')
-    response = get_services()
-    logging.debug(f'get_services - получил ответ')
-    logging.debug(f'get_services - начинает отправку отчета')
-    await message.answer(response)
-    logging.debug(f'get_services - отправил отчет, завершил работу')
+def get_services(update: Update, context):
+    global client
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('service --status-all')
+    update.message.reply_text(print_info(stdout,stderr))
 
-@dp.message_handler(commands=['get_apt_list'])
-async def apt_list_arg(message: types.Message):
-    logging.debug(f'Вызов get_apt_list')
-    await message.answer("Введите аргумент или /next чтобы продолжить без ввода аргумента:")
-    await message.answer("/close - для выхода из функции")
-    await argState.arg.set()
-@dp.message_handler(state=argState.arg)
-async def process_phone(message: types.Message, state: FSMContext):
-    arg_text = message.text
-    logging.debug(f'get_apt_list поймал сообщение от пользователя:{arg_text}')
-    if arg_text != '/close':
-        logging.debug(f'get_apt_list - сообщение не является /close')
-        if arg_text != '/next':
-            logging.debug(f'get_apt_list - сообщение не является /next')
-            logging.debug(f'get_apt_list - вызов функции get_apt_list_arg({arg_text})')
-            responce = get_apt_list_arg(arg_text)
-            logging.debug(f'get_apt_list - получил ответ')
-            logging.debug(f'get_apt_list - начинает проверку длины ответа')
-            if len(responce) > 4096:
-                logging.debug(f'get_apt_list - длина ответа больше 4096')
-                n = len(responce) // 4096
-                logging.debug(f'get_apt_list - найдено целое число делений ответа = {n}')
-                logging.debug(f'get_apt_list - запуск цикла отправки сообщений в интервале от 0 до {n}')
-                for i in range(n):
-                    await message.answer(responce[:4096])
-                    logging.debug(f'get_apt_list {i}-е сообщение отправлено')
-                    responce = responce[4096:]
-                    logging.debug(f'get_apt_list - удалил первые 4096 символ из ответа от функции')
-                    time.sleep(1)
-                    logging.debug(f'get_apt_list - ушел в сон на 1 секунду')
-                logging.debug(f'get_apt_list - заверил цикл, начинает проверку остатка ответа')
-                if len(responce) > 0:
-                    logging.debug(f'get_apt_list - остаток найден')
-                    await message.answer(responce)
-                    await state.finish()
-                    logging.debug(f'get_apt_list - отправил последнее сообщение и завершил работу')
-            else:
-                logging.debug(f'get_apt_list - длина ответа меньше 4096')
-                await message.answer(responce)
-                await state.finish()
-                logging.debug(f'get_apt_list - отправил отчет и завершил работу')
-        else:
-            logging.debug(f'get_apt_list - сообщение является /next')
-            logging.debug(f'get_apt_list вызывает get_apt_list')
-            responce = get_apt_list()
-            logging.debug(f'get_apt_list - получил ответ')
-            logging.debug(f'get_apt_list - начинает проверку длины ответа')
-            if len(responce) > 4096:
-                logging.debug(f'get_apt_list - длина ответа больше 4096')
-                n = len(responce) // 4096
-                logging.debug(f'get_apt_list - найдено целое число делений ответа = {n}')
-                logging.debug(f'get_apt_list - запуск цикла отправки сообщений в интервале от 0 до {n}')
-                for i in range(n):
-                    await message.answer(responce[:4096])
-                    logging.debug(f'get_apt_list {i}-е сообщение отправлено')
-                    responce = responce[4096:]
-                    logging.debug(f'get_apt_list - удалил первые 4096 символ из ответа от функции')
-                    time.sleep(1)
-                    logging.debug(f'get_apt_list - ушел в сон на 1 секунду')
-                logging.debug(f'get_apt_list - заверил цикл, начинает проверку остатка ответа')
-                if len(responce) > 0:
-                    logging.debug(f'get_apt_list - остаток найден')
-                    await message.answer(responce)
-                    await state.finish()
-                    logging.debug(f'get_apt_list - отправил последнее сообщение и завершил работу')
-            else:
-                logging.debug(f'get_apt_list - длина ответа меньше 4096')
-                await message.answer(responce)
-                await state.finish()
-                logging.debug(f'get_apt_list - отправил отчет и завершил работу')
-    else:
-        logging.debug(f'get_apt_list - сообщение является /close')
-        await message.answer('Вы вышли из функции...')
-        await state.finish()
-        logging.debug(f'get_apt_list - отправил отчет и завершил работу')
+def get_repl_logs(update: Update, context):
+    connect_to_machine('192.168.0.104')
+    stdin, stdout, stderr = client.exec_command('docker logs bot_image_repl --tail 20')
+    update.message.reply_text(print_info(stdout,stderr))
 
-@dp.message_handler(commands=['get_repl_logs'])
-async def get_repl_l(message: types.Message):
-    logging.debug(f'Вызов get_repl_logs')
-    logging.debug(f'get_mpstat вызывает get_repl_logs')
-    responce = get_repl_logs()
-    logging.debug(f'get_repl_logs - получил ответ')
-    logging.debug(f'get_repl_logs - начинает проверку длины')
-    if len(responce) > 4096:
-        logging.debug(f'get_repl_logs - длина больше 4096')
-        n = len(responce) // 4096
-        logging.debug(f'get_repl_logs - найдено целое число делений ответа = {n}')
-        logging.debug(f'get_repl_logs - запуск цикла отправки сообщений в интервале от 0 до {n}')
-        for i in range(n):
-            await message.answer(responce[:4096])
-            logging.debug(f'get_repl_logs {i}-е сообщение отправлено')
-            responce = responce[4096:]
-            logging.debug(f'get_repl_logs - удалил первые 4096 символ из ответа от функции')
-            time.sleep(1)
-            logging.debug(f'get_repl_logs - ушел в сон на 1 секунду')
-        logging.debug(f'get_repl_logs - заверил цикл, начинает проверку остатка ответа')
-        if len(responce) > 0:
-            logging.debug(f'get_repl_logs - остаток найден')
-            await message.answer(responce)
-            logging.debug(f'get_repl_logs - отправил последнее сообщение и завершил работу')
-    else:
-        logging.debug(f'get_repl_logs - длина ответа меньше 4096')
-        await message.answer(responce)
-        logging.debug(f'get_repl_logs - отправил отчет и завершил работу')
+def get_emails(update: Update, context):
+    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM email;")
+    data = cursor.fetchall()
+    output=''
+    for x in data:
+        output+=str(x[0])+'. '+x[1]+'\n'
+    update.message.reply_text(output)
+    connection.close()
 
-@dp.message_handler(commands=['get_phone_numbers'])
-async def g_phone(message: types.Message):
-    logging.debug(f'Вызов get_phone_numbers')
-    logging.debug(f'get_phone_numbers вызывает get_phone_numbers')
-    response = get_phone_number()
-    logging.debug(f'get_phone_numbers - получил ответ')
-    logging.debug(f'get_phone_numbers - начинает обработку ответа')
-    answer = ''
-    try:
-        for i in response:
-            i = str(i)
-            i = re.sub(r'[\(\)\'\,]', '', i)
-            answer += i + '\n'
-    except Exception as ex:
-        logging.error(f'Ошибка при обработке: {ex}')
-        await message.answer('Ошибка')
-        return 0
-    logging.debug(f'get_phone_numbers - начинает отправку отчета')
-    await message.answer(answer)
-    logging.debug(f'get_phone_numbers - отправил отчет, завершил работу')
+def get_phone_numbers(update: Update, context):
+    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432",database="base_1")
+    cursor = connection.cursor()
+    cursor.execute("SELECT * FROM phone;")
+    data = cursor.fetchall()
+    output=''
+    for x in data:
+        output+=str(x[0])+'. '+str(x[1])+'\n'
+    update.message.reply_text(output)
+    connection.close()
 
-@dp.message_handler(commands=['get_emails'])
-async def g_email(message: types.Message):
-    logging.debug(f'Вызов get_emails')
-    logging.debug(f'get_emails вызывает get_emails')
-    response = get_emails()
-    logging.debug(f'get_emails - получил ответ')
-    logging.debug(f'get_emails - начинает обработку ответа')
-    answer = ''
-    try:
-        for i in response:
-            i = str(i)
-            i = re.sub(r'[\(\)\'\,]', '', i)
-            answer += i + '\n'
-    except Exception as ex:
-        logging.error(f'Ошибка при обработке: {ex}')
-        await message.answer('Ошибка')
-        return 0
-    logging.debug(f'get_emails - начинает отправку отчета')
-    await message.answer(answer)
-    logging.debug(f'get_emails - отправил отчет, завершил работу')
+def main():
+    updater = Updater(TOKEN, use_context=True)
+
+    dp = updater.dispatcher
+
+    convHandlerFindEmail = ConversationHandler(
+        entry_points=[CommandHandler('find_email',findEmailCommand)],
+        states={
+            'find_email':[MessageHandler(Filters.text & ~Filters.command, find_email)],
+            'SAVE EMAIL': [MessageHandler(Filters.text & ~Filters.command, save_email)],
+        },
+        fallbacks=[]
+    )
+
+    convHandlerFindPhoneNumber = ConversationHandler(
+        entry_points=[CommandHandler('find_phone_number', findPhoneNumberCommand)],
+        states={
+            'find_phone_number': [MessageHandler(Filters.text & ~Filters.command, find_phone_number)],
+            'SAVE PHONE NUMBERS': [MessageHandler(Filters.text & ~Filters.command, save_phone_numbers)],
+        },
+        fallbacks=[]
+    )
+    
+    convHandlerverifyPassword = ConversationHandler(
+        entry_points=[CommandHandler('verify_password',verifyPasswordCommand)],
+        states={
+            'verify_password':[MessageHandler(Filters.text & ~Filters.command, verify_password)],
+        },
+        fallbacks=[]
+    )
+
+
+    convHandleraptList = ConversationHandler(
+        entry_points=[CommandHandler('get_apt_list',aptListCommand)],
+        states={
+            'get_apt_list':[MessageHandler(Filters.text & ~Filters.command, get_apt_list)],
+        },
+        fallbacks=[]
+    )
+  # Регистрируем обработчики команд
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(convHandlerFindEmail)
+    dp.add_handler(convHandlerFindPhoneNumber)
+    dp.add_handler(convHandlerverifyPassword)
+    dp.add_handler(convHandleraptList)
+
+    dp.add_handler(CommandHandler('get_release', get_release))
+    dp.add_handler(CommandHandler('get_uname', get_uname))
+    dp.add_handler(CommandHandler('get_uptime', get_uptime))
+    dp.add_handler(CommandHandler('get_df', get_df))
+    dp.add_handler(CommandHandler('get_free', get_free))
+    dp.add_handler(CommandHandler('get_mpstat', get_mpstat))
+    dp.add_handler(CommandHandler('get_w', get_w))
+    dp.add_handler(CommandHandler('get_auth', get_auth))
+    dp.add_handler(CommandHandler('get_critical', get_critical))
+    dp.add_handler(CommandHandler('get_ps', get_ps))
+    dp.add_handler(CommandHandler('get_ss', get_ss))
+    dp.add_handler(CommandHandler('get_services', get_services))
+
+    dp.add_handler(CommandHandler('get_repl_logs',get_repl_logs))  
+    dp.add_handler(CommandHandler('get_emails',get_emails))
+    dp.add_handler(CommandHandler('get_phone_numbers',get_phone_numbers))
 
 
 
+    updater.start_polling()
+
+  # Останавливаем бота при нажатии Ctrl+C
+    updater.idle()
 
 
-
-#---------------------------------------START---------------------------------------
-if __name__ == "__main__":
-    executor.start_polling(dp)
-    print('Системы стартовали')
-    logging.debug('Начало программы')
-    a = sozd_table()
+if __name__ == '__main__':
+    main()
