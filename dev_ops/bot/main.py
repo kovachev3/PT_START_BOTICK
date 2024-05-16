@@ -2,24 +2,28 @@ import logging
 import re
 import psycopg2
 
+import os
+
 from psycopg2 import Error
 
 from telegram import Update, ForceReply
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
-
+from dotenv import load_dotenv
 import paramiko
+
+load_dotenv()
+
 client = paramiko.SSHClient()
 def connect_to_machine(thishost):
     global client
-    host = thishost
-    port = '22'
-    username = 'kali'
-    password = 'kali'
+    host = os.getenv('RM_HOST')
+    port = os.getenv('RM_PORT')
+    username = os.getenv('RM_USER')
+    password = os.getenv('RM_PASSWORD')
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(hostname=host, username=username, password=password, port=port)
 
-
-TOKEN = "6572075975:AAHR9lTpU0AhPlOboiMGQSsnqwZugJRpq8c"
+TOKEN = os.getenv('TOKEN')
 
 # Подключаем логирование
 logging.basicConfig(
@@ -66,7 +70,7 @@ def find_email(update: Update, context):
     return 'SAVE EMAIL'
 
 def save_email(update: Update, context):
-    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
+    connection = psycopg2.connect(user=os.getenv('DB_USER'), password=os.getenv('DB_PASSWORD'), host=os.getenv('DB_HOST'), port=os.getenv('DB_PORT'), database=os.getenv('DB_DATABASE'))
     cursor = connection.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS email(ID SERIAL PRIMARY KEY, email VARCHAR(100) NOT NULL);")
     connection.commit()
@@ -114,24 +118,27 @@ def find_phone_number(update: Update, context):
     return 'SAVE PHONE NUMBERS'
     
 def save_phone_numbers(update: Update, context):
-    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
+    connection = psycopg2.connect(user=os.getenv('DB_USER'), password=os.getenv('DB_PASSWORD'), host=os.getenv('DB_HOST'), port=os.getenv('DB_PORT'), database=os.getenv('DB_DATABASE'))
     cursor = connection.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS phone(ID SERIAL PRIMARY KEY, phone VARCHAR(20));")
     connection.commit()
     phoneNumberList = context.user_data['phone_numbers']
     
-    for phone_number in phoneNumberList:
-        cursor.execute("SELECT * FROM phone WHERE phone = %s", (phone_number,))
-        if cursor.fetchone():
-            update.message.reply_text(f"Номер телефона {phone_number} уже существует в базе данных.")
-        else:
-            try:
-                cursor.execute("INSERT INTO phone(phone) VALUES (%s);", (phone_number,))
-                connection.commit()
-                update.message.reply_text(f"Номер телефона {phone_number} успешно добавлен в базу данных!")
-            except (Exception, Error) as error:
-                update.message.reply_text("Ошибка в бд")
-                return ConversationHandler.END
+    if update.message.text == 'Y':
+        try:
+            for phone_number in phoneNumberList:
+                cursor.execute("SELECT * FROM phone WHERE phone = %s", (phone_number,))
+                if cursor.fetchone():
+                    update.message.reply_text(f"Номер телефона {phone_number} уже существует в базе данных.")
+                else:
+                    cursor.execute("INSERT INTO phone(phone) VALUES (%s);", (phone_number,))
+            connection.commit()
+            update.message.reply_text("Все номера успешно добавлены в базу данных!")
+        except (Exception, Error) as error:
+            update.message.reply_text("Ошибка в бд")
+            return ConversationHandler.END
+    else:
+        update.message.reply_text("Операция отменена. Номера не добавлены в базу данных.")
 
     connection.close()
     return ConversationHandler.END
@@ -157,67 +164,67 @@ def print_info(stdout, stderr):
 
 def get_release(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('cat /etc/os-release')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_uname(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('uname -a')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_uptime(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('uptime')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_df(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('df')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_free(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('free')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_mpstat(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('mpstat')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_w(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('w')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_auth(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('cat /var/log/auth.log | head -10')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_critical(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('cat /var/log/syslog | head -5')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_ps(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('ps')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_ss(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('ss -tulpn')
     update.message.reply_text(print_info(stdout,stderr))
 
@@ -225,7 +232,7 @@ def get_ss(update: Update, context):
 
 def get_apt_list(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     user_input=str(update.message.text)
     if user_input=='all':
         stdin, stdout, stderr = client.exec_command('apt list | head -15')
@@ -238,17 +245,17 @@ def get_apt_list(update: Update, context):
 
 def get_services(update: Update, context):
     global client
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('service --status-all')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_repl_logs(update: Update, context):
-    connect_to_machine('192.168.0.104')
+    connect_to_machine(os.getenv('RM_HOST'))
     stdin, stdout, stderr = client.exec_command('docker logs bot_image_repl --tail 20')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_emails(update: Update, context):
-    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
+    connection = psycopg2.connect(user=os.getenv('DB_USER'), password=os.getenv('DB_PASSWORD'), host=os.getenv('DB_HOST'), port=os.getenv('DB_PORT'), database=os.getenv('DB_DATABASE'))
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM email;")
     data = cursor.fetchall()
@@ -259,7 +266,7 @@ def get_emails(update: Update, context):
     connection.close()
 
 def get_phone_numbers(update: Update, context):
-    connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432",database="base_1")
+    connection = psycopg2.connect(user=os.getenv('DB_USER'), password=os.getenv('DB_PASSWORD'), host=os.getenv('DB_HOST'), port=os.getenv('DB_PORT'), database=os.getenv('DB_DATABASE'))
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM phone;")
     data = cursor.fetchall()
