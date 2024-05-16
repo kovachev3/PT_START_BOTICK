@@ -34,7 +34,7 @@ services:
       -c max_wal_senders=10 
       -c max_replication_slots=10 
       -c hot_standby_feedback=on
-      -c listen_addresses='*'
+      -c listen_addresses='*' 
     volumes:
       - ./db/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
     networks:
@@ -68,8 +68,6 @@ services:
       - db_image
     container_name: bot_image_repl
 
-    env_file:
-      - .env
   bot_image:
     container_name: bot_image_
     build:

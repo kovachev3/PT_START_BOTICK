@@ -246,12 +246,12 @@ def get_apt_list(update: Update, context):
 def get_services(update: Update, context):
     global client
     connect_to_machine(os.getenv('RM_HOST'))
-    stdin, stdout, stderr = client.exec_command('service --status-all')
+    stdin, stdout, stderr = client.exec_command('service --status-all | grep [+]')
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_repl_logs(update: Update, context):
     connect_to_machine(os.getenv('RM_HOST'))
-    stdin, stdout, stderr = client.exec_command('docker logs bot_image_repl --tail 20')
+    stdin, stdout, stderr = client.exec_command("docker logs bot_image_repl | grep -E 'checkpoint|replica'")
     update.message.reply_text(print_info(stdout,stderr))
 
 def get_emails(update: Update, context):
