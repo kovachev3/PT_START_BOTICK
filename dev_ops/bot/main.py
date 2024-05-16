@@ -51,37 +51,43 @@ def aptListCommand(update: Update, context):
 
 def find_email(update: Update, context):
     user_input = update.message.text
-    emailNumRegex =re.compile(r"\b[a-zA-Z0-9]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}\b")
-    emailNumList = emailNumRegex.findall(user_input)
-    context.user_data['email'] = emailNumList
-    if not emailNumList:
+    emailNumRegex = re.compile(r"\b[a-zA-Z0-9]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}\b")
+    emailNumSet = set(emailNumRegex.findall(user_input))
+    context.user_data['email'] = list(emailNumSet)
+    if not emailNumSet:
         update.message.reply_text('Email не были найдены')
         return
     emailNum = ''
-    for i in range(len(emailNumList)):
-        emailNum += f'{i+1}. {emailNumList[i]}\n'
+    for i, email in enumerate(emailNumSet):
+        emailNum += f'{i+1}. {email}\n'
     update.message.reply_text('Были найдены следующие email: '\
                               +'\n'+emailNum+'\n'\
                                 +'Записать их в базу данных? (Y\\N)') 
     return 'SAVE EMAIL'
 
-def save_email(update: Update,context):
+def save_email(update: Update, context):
     connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
-    cursor= connection.cursor()
+    cursor = connection.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS email(ID SERIAL PRIMARY KEY, email VARCHAR(100) NOT NULL);")
     connection.commit()
-    email = context.user_data['email']
-    if update.message.text in ['Y','N']:
-        if(update.message.text == 'Y'):
+    email_list = context.user_data['email']
+    if update.message.text in ['Y', 'N']:
+        if update.message.text == 'Y':
             try:
-                for x in email:
-                    cursor.execute("INSERT INTO email(email) VALUES ('"+str(x)+"');")
-                connection.commit()
-                update.message.reply_text("Успешно добавлен в бд!")
-                connection.close()
+                for email in email_list:
+                    cursor.execute("SELECT 1 FROM email WHERE email = %s", (email,))
+                    if cursor.fetchone():
+                        update.message.reply_text(f"Email {email} уже существует в базе данных.")
+                        break
+                else:
+                    for email in email_list:
+                        cursor.execute("INSERT INTO email(email) VALUES (%s)", (email,))
+                    connection.commit()
+                    update.message.reply_text("Успешно добавлен в бд!")
             except (Exception, Error) as error:
                 update.message.reply_text("Ошибка в бд")
-                return ConversationHandler.END
+            finally:
+                connection.close()
         else:
             connection.close()
             return ConversationHandler.END
@@ -90,7 +96,7 @@ def save_email(update: Update,context):
         connection.close()
         return ConversationHandler.END
     return ConversationHandler.END
-
+    
 def find_phone_number(update: Update, context):
     user_input = update.message.text 
     phoneNumRegex = re.compile(r"\+?7[ -]?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}|\+?7[ -]?\d{10}|\+?7[ -]?\d{3}[ -]?\d{3}[ -]?\d{4}|8[ -]?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}|8[ -]?\d{10}|8[ -]?\d{3}[ -]?\d{3}[ -]?\d{4}") 
@@ -106,35 +112,29 @@ def find_phone_number(update: Update, context):
                               +'\n'+phoneNumbers+'\n'\
                                 +'Записать их в базу данных? (Y\\N)') 
     return 'SAVE PHONE NUMBERS'
-
-
-
-def save_phone_numbers(update: Update,context):
+    
+def save_phone_numbers(update: Update, context):
     connection = psycopg2.connect(user="postgres", password="Qq12345", host="db_image", port="5432", database="base_1")
     cursor = connection.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS phone(ID SERIAL PRIMARY KEY, phone VARCHAR(20));")
     connection.commit()
     phoneNumberList = context.user_data['phone_numbers']
-    if update.message.text in ['Y','N']:
-        if(update.message.text == 'Y'):
+    
+    for phone_number in phoneNumberList:
+        cursor.execute("SELECT * FROM phone WHERE phone = %s", (phone_number,))
+        if cursor.fetchone():
+            update.message.reply_text(f"Номер телефона {phone_number} уже существует в базе данных.")
+        else:
             try:
-                for x in phoneNumberList:
-                    cursor.execute("INSERT INTO phone(phone) VALUES ('"+str(x)+"');")
+                cursor.execute("INSERT INTO phone(phone) VALUES (%s);", (phone_number,))
                 connection.commit()
-                update.message.reply_text("Успешно добавлен в бд!")
-                connection.close()
+                update.message.reply_text(f"Номер телефона {phone_number} успешно добавлен в базу данных!")
             except (Exception, Error) as error:
                 update.message.reply_text("Ошибка в бд")
                 return ConversationHandler.END
-        else:
-            connection.close()
-            return ConversationHandler.END
-    else:
-        update.message.reply_text("OS")
-        connection.close()
-        return ConversationHandler.END
-    return ConversationHandler.END
 
+    connection.close()
+    return ConversationHandler.END
 
 def verify_password(update: Update, context):
     user_input=update.message.text
