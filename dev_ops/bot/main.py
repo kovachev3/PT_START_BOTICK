@@ -9,9 +9,10 @@ from psycopg2 import Error
 from telegram import Update, ForceReply
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
 from dotenv import load_dotenv
+from dotenv import find_dotenv
 import paramiko
 
-load_dotenv()
+load_dotenv(find_dotenv())
 
 client = paramiko.SSHClient()
 def connect_to_machine(thishost):
@@ -123,23 +124,31 @@ def save_phone_numbers(update: Update, context):
     connection.commit()
     phoneNumberList = context.user_data['phone_numbers']
     
-    if update.message.text == 'Y':
+    if update.message.text.upper() == 'Y':
+        existing_numbers = []
+        added_numbers = []
         try:
             for phone_number in phoneNumberList:
                 cursor.execute("SELECT * FROM phone WHERE phone = %s", (phone_number,))
                 if cursor.fetchone():
-                    update.message.reply_text(f"Номер телефона {phone_number} уже существует в базе данных.")
+                    existing_numbers.append(phone_number)
                 else:
                     cursor.execute("INSERT INTO phone(phone) VALUES (%s);", (phone_number,))
+                    added_numbers.append(phone_number)
             connection.commit()
-            update.message.reply_text("Все номера успешно добавлены в базу данных!")
+            
+            if existing_numbers:
+                update.message.reply_text(f"Номер телефона {', '.join(existing_numbers)} уже существует в базе данных.")
+            if added_numbers:
+                update.message.reply_text("Все номера успешно добавлены в базу данных!")
         except (Exception, Error) as error:
             update.message.reply_text("Ошибка в бд")
-            return ConversationHandler.END
+        finally:
+            connection.close()
     else:
         update.message.reply_text("Операция отменена. Номера не добавлены в базу данных.")
+        connection.close()
 
-    connection.close()
     return ConversationHandler.END
 
 def verify_password(update: Update, context):
