@@ -49,8 +49,7 @@ def verifyPasswordCommand(update: Update, context):
     return 'verify_password'
 
 def aptListCommand(update: Update, context):
-    update.message.reply_text('all - посмотреть все пакеты,\
-                               \n\'Название пакета\' - посмотреть информацию о пакете')
+    update.message.reply_text('Напишите all ,чтобы посмотреть все пакеты')
     return 'get_apt_list'
 
 def find_email(update: Update, context):
@@ -235,11 +234,7 @@ def get_apt_list(update: Update, context):
     connect_to_machine(os.getenv('RM_HOST'))
     user_input=str(update.message.text)
     if user_input=='all':
-        stdin, stdout, stderr = client.exec_command('apt list | head -15')
-        update.message.reply_text(print_info(stdout,stderr))
-    else:
-        user_input_apt=update.message.text
-        stdin, stdout, stderr = client.exec_command('apt show '+str(user_input_apt))
+        stdin, stdout, stderr = client.exec_command('apt list --installed | head -15')
         update.message.reply_text(print_info(stdout,stderr))
     return ConversationHandler.END 
 
