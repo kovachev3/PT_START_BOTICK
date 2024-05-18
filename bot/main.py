@@ -162,7 +162,7 @@ def verify_password(update: Update, context):
         update.message.reply_text('Пароль сложный')
     else:
         update.message.reply_text('Пароль простой')
-        return
+        return ConversationHandler.END
     return ConversationHandler.END 
 
 def print_info(stdout, stderr):
